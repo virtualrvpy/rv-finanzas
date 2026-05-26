@@ -319,9 +319,25 @@ function updateBalanceWarning(balance) {
   }
 }
 
-function getPeriodMetrics(offset) {
+function getPeriodMetrics(offset, capToToday = false) {
   const p = getPeriod(offset);
-  const txs = transactionsCache.filter(tx => tx.date >= p.startDate && tx.date <= p.endDate);
+  let startDate = p.startDate;
+  let endDate = p.endDate;
+  if (capToToday) {
+    const currentPeriod = getPeriod(0);
+    const today = new Date();
+    today.setHours(23, 59, 59, 999);
+    const currentEnd = today < currentPeriod.endDate ? today : new Date(currentPeriod.endDate);
+    const daysElapsed = Math.floor((currentEnd - currentPeriod.startDate) / (86400000));
+    if (offset === 0) {
+      endDate = currentEnd;
+    } else {
+      endDate = new Date(startDate);
+      endDate.setDate(endDate.getDate() + daysElapsed);
+      endDate.setHours(23, 59, 59, 999);
+    }
+  }
+  const txs = transactionsCache.filter(tx => tx.date >= startDate && tx.date <= endDate);
   let income = 0, expense = 0;
   txs.forEach(tx => {
     if (tx.type === 'income') income += tx.amount;
@@ -330,17 +346,21 @@ function getPeriodMetrics(offset) {
   return { income, expense, balance: income - expense, label: p.label };
 }
 
-function renderComparison(current) {
-  const prev = getPeriodMetrics(activePeriodOffset - 1);
+function renderComparison() {
+  if (activePeriodOffset !== 0) {
+    document.getElementById('db-income-comp').innerHTML = '';
+    document.getElementById('db-expense-comp').innerHTML = '';
+    return;
+  }
+  const current = getPeriodMetrics(0, true);
+  const prev = getPeriodMetrics(-1, true);
   const fmt = (diff) => {
     if (diff > 0) return `<span class="period-comp up">↑ ${formatCurrency(diff, true)}</span>`;
     if (diff < 0) return `<span class="period-comp down">↓ ${formatCurrency(-diff, true)}</span>`;
     return `<span class="period-comp same">—</span>`;
   };
-  const incomeEl = document.getElementById('db-income-comp');
-  const expenseEl = document.getElementById('db-expense-comp');
-  if (incomeEl) incomeEl.innerHTML = activePeriodOffset === 0 ? fmt(current.income - prev.income) : '';
-  if (expenseEl) expenseEl.innerHTML = activePeriodOffset === 0 ? fmt(prev.expense - current.expense) : '';
+  document.getElementById('db-income-comp').innerHTML = fmt(current.income - prev.income);
+  document.getElementById('db-expense-comp').innerHTML = fmt(current.expense - prev.expense);
 }
 
 // === PRESUPUESTOS POR CATEGORÍA ===
@@ -421,7 +441,7 @@ function renderDashboard() {
   document.getElementById('db-expense').textContent = isValuesHidden ? 'Gs. •••••' : formatCurrency(totalExpense);
   
   updateBalanceWarning(balance);
-  renderComparison({ income: totalIncome, expense: totalExpense, balance });
+  renderComparison();
 
   // Colores dinámicos del balance
   const balanceEl = document.getElementById('db-balance');
