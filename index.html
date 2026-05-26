@@ -100,6 +100,7 @@
             </div>
             <div id="period-indicator" style="font-size: 11px; color: var(--text-secondary); text-align: center; margin-bottom: 8px;"></div>
             <div id="db-balance" class="balance-amount">Gs. 0</div>
+            <div id="balance-warning" style="display: none; margin-top: 8px; padding: 8px 12px; border-radius: 10px; background: rgba(255, 45, 85, 0.12); color: var(--danger); font-size: 12px; font-weight: 600; text-align: center;">⚠️ Balance por debajo del mínimo configurado</div>
             
             <div class="balance-row">
               <div class="balance-col">
@@ -308,6 +309,14 @@
               </div>
             </div>
             
+            <div class="settings-option">
+              <span class="settings-option-label">Alerta de Saldo Mínimo</span>
+              <div style="display: flex; align-items: center; gap: 8px;">
+                <input type="number" id="balance-threshold" min="0" step="100000" value="3000000" style="width: 100px; text-align: center; padding: 6px; border-radius: 8px; border: 1px solid var(--border-color); background: var(--bg-secondary); color: var(--text-primary); font-family: inherit; font-size: 14px; font-weight: 600;">
+                <span style="font-size: 12px; color: var(--text-secondary);">Gs.</span>
+              </div>
+            </div>
+
             <div class="settings-option">
               <span class="settings-option-label">Estado de Firebase</span>
               <span id="firebase-status-badge" class="firebase-badge inactive">Desconectado</span>

@@ -1,6 +1,6 @@
 import { getFirebaseConfig, saveFirebaseConfig, clearFirebaseConfig } from "./config.js";
 import { getFirebase, onAuthChange, loginWithGoogle, logoutUser } from "./auth.js";
-import { getTransactions, saveTransaction, updateTransaction, deleteTransaction, getCategories, saveCategory } from "./db.js";
+import { getTransactions, saveTransaction, updateTransaction, deleteTransaction, getCategories, saveCategory, updateCategory } from "./db.js";
 
 // === CONSTANTES Y ESTADO GLOBAL ===
 let currentUser = null;
@@ -8,6 +8,7 @@ let activeTheme = localStorage.getItem('rv_theme') || 'dark';
 let activeView = 'dashboard';
 let isValuesHidden = localStorage.getItem('rv_privacy') === 'true';
 let editTransactionId = null;
+let editCategoryId = null;
 let categoriesCache = [];
 let transactionsCache = [];
 let unsubscribeAuth = null;
@@ -147,6 +148,9 @@ function route() {
     if (hash !== 'add') {
       editTransactionId = null;
     }
+    if (hash !== 'categories') {
+      editCategoryId = null;
+    }
     
     // Transición fade-out / fade-in
     const content = document.getElementById('page-content');
@@ -259,6 +263,24 @@ function updatePeriodPreview() {
   }
 }
 
+function getBalanceThreshold() {
+  return parseInt(localStorage.getItem('rv_balance_threshold')) || 3000000;
+}
+
+function saveBalanceThreshold(val) {
+  localStorage.setItem('rv_balance_threshold', val.toString());
+}
+
+function updateBalanceWarning(balance) {
+  const el = document.getElementById('balance-warning');
+  if (!el) return;
+  if (balance < getBalanceThreshold()) {
+    el.style.display = 'block';
+  } else {
+    el.style.display = 'none';
+  }
+}
+
 function updatePeriodIndicator() {
   const el = document.getElementById('period-indicator');
   if (el) {
@@ -295,6 +317,8 @@ function renderDashboard() {
   document.getElementById('db-income').textContent = isValuesHidden ? 'Gs. •••••' : formatCurrency(totalIncome);
   document.getElementById('db-expense').textContent = isValuesHidden ? 'Gs. •••••' : formatCurrency(totalExpense);
   
+  updateBalanceWarning(balance);
+
   // Colores dinámicos del balance
   const balanceEl = document.getElementById('db-balance');
   if (balance >= 0) {
@@ -599,6 +623,7 @@ function renderCategories() {
     const item = document.createElement('div');
     item.className = 'category-card-item';
     item.innerHTML = `
+      <button class="category-card-edit-btn" data-id="${cat.id}" data-name="${escapeHTML(cat.name)}" data-emoji="${cat.emoji}" data-color="${cat.color}" data-type="${cat.type}" title="Editar categoría">✏️</button>
       <div class="category-card-emoji" style="background-color: ${cat.color}20; color: ${cat.color};">
         ${cat.emoji}
       </div>
@@ -608,6 +633,61 @@ function renderCategories() {
       </div>
     `;
     container.appendChild(item);
+  });
+
+  // Add edit button listeners
+  container.querySelectorAll('.category-card-edit-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      editCategoryId = btn.dataset.id;
+      document.getElementById('new-cat-name').value = btn.dataset.name;
+      document.getElementById('new-cat-name').focus();
+
+      const type = btn.dataset.type;
+      const catTypeExpense = document.getElementById('cat-type-expense');
+      const catTypeIncome = document.getElementById('cat-type-income');
+      if (type === 'expense') {
+        catTypeExpense.classList.add('selected');
+        catTypeIncome.classList.remove('selected');
+      } else {
+        catTypeIncome.classList.add('selected');
+        catTypeExpense.classList.remove('selected');
+      }
+
+      // Select matching emoji
+      document.querySelectorAll('#new-cat-emoji-list .emoji-option').forEach(el => {
+        el.classList.toggle('selected', el.dataset.emoji === btn.dataset.emoji);
+      });
+      // Select matching color
+      document.querySelectorAll('#new-cat-color-list .color-option').forEach(el => {
+        el.classList.toggle('selected', el.dataset.color === btn.dataset.color);
+      });
+
+      document.querySelector('#sect-categories h1').textContent = 'Editar Categoría';
+      const submitBtn = document.querySelector('#create-category-form button[type="submit"]');
+      submitBtn.textContent = 'Guardar Cambios';
+
+      let cancelCatBtn = document.getElementById('cancel-cat-edit-btn');
+      if (!cancelCatBtn) {
+        cancelCatBtn = document.createElement('button');
+        cancelCatBtn.id = 'cancel-cat-edit-btn';
+        cancelCatBtn.type = 'button';
+        cancelCatBtn.className = 'btn-primary';
+        cancelCatBtn.style.cssText = 'background: var(--bg-tertiary); color: var(--text-primary); margin-top: 12px; box-shadow: none;';
+        cancelCatBtn.textContent = 'Cancelar';
+        submitBtn.parentNode.insertBefore(cancelCatBtn, submitBtn.nextSibling);
+        cancelCatBtn.addEventListener('click', () => {
+          editCategoryId = null;
+          document.getElementById('new-cat-name').value = '';
+          document.querySelector('#sect-categories h1').textContent = 'Mis Categorías';
+          submitBtn.textContent = 'Crear Categoría';
+          cancelCatBtn.style.display = 'none';
+        });
+      }
+      cancelCatBtn.style.display = 'block';
+
+      // Scroll to form
+      document.getElementById('create-category-form').scrollIntoView({ behavior: 'smooth' });
+    });
   });
 
   // Renderizar selectores de emoji y color en el formulario de creación
@@ -801,6 +881,19 @@ function setupEventListeners() {
     });
   }
 
+  // Alerta de saldo mínimo
+  const thresholdInput = document.getElementById('balance-threshold');
+  if (thresholdInput) {
+    thresholdInput.value = getBalanceThreshold();
+    thresholdInput.addEventListener('change', () => {
+      let val = parseInt(thresholdInput.value);
+      if (isNaN(val) || val < 0) val = 0;
+      thresholdInput.value = val;
+      saveBalanceThreshold(val);
+      if (currentUser && activeView === 'dashboard') renderDashboard();
+    });
+  }
+
   // Periodo (día de cierre)
   const periodInput = document.getElementById('period-close-day');
   if (periodInput) {
@@ -959,44 +1052,46 @@ function setupEventListeners() {
     catTypeExpense.classList.remove('selected');
   });
 
-  // Submit Creación Categoría
+  // Submit Creación / Edición Categoría
   document.getElementById('create-category-form').addEventListener('submit', async (e) => {
     e.preventDefault();
     
     const name = document.getElementById('new-cat-name').value.trim();
     const type = catTypeExpense.classList.contains('selected') ? 'expense' : 'income';
     
-    // Emoji y Color seleccionados
     const selectedEmojiEl = document.querySelector('#new-cat-emoji-list .emoji-option.selected');
     const selectedColorEl = document.querySelector('#new-cat-color-list .color-option.selected');
     
     const emoji = selectedEmojiEl ? selectedEmojiEl.dataset.emoji : '🏷️';
     const color = selectedColorEl ? selectedColorEl.dataset.color : '#8E8E93';
     
-    const category = {
-      name,
-      type,
-      emoji,
-      color
-    };
+    const category = { name, type, emoji, color };
     
     try {
       const submitBtn = e.target.querySelector('button[type="submit"]');
       submitBtn.disabled = true;
-      
-      await saveCategory(currentUser.uid, category);
-      
-      showToast("Categoría creada.", "success");
+
+      if (editCategoryId) {
+        await updateCategory(currentUser.uid, editCategoryId, category);
+        showToast("Categoría actualizada.", "success");
+        editCategoryId = null;
+        document.querySelector('#sect-categories h1').textContent = 'Mis Categorías';
+        submitBtn.textContent = 'Crear Categoría';
+        const cancelCatBtn = document.getElementById('cancel-cat-edit-btn');
+        if (cancelCatBtn) cancelCatBtn.style.display = 'none';
+      } else {
+        await saveCategory(currentUser.uid, category);
+        showToast("Categoría creada.", "success");
+      }
+
       document.getElementById('new-cat-name').value = '';
-      
       submitBtn.disabled = false;
       
-      // Refrescar caché de categorías y volver a listar
       categoriesCache = await getCategories(currentUser.uid);
       renderCategories();
     } catch (err) {
       console.error(err);
-      showToast("Error al crear categoría.", "error");
+      showToast("Error al guardar categoría.", "error");
       e.target.querySelector('button[type="submit"]').disabled = false;
     }
   });

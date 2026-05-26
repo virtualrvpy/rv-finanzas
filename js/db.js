@@ -167,7 +167,6 @@ export async function deleteTransaction(userId, transactionId) {
 export async function getCategories(userId) {
   const firebase = getFirebase();
   if (!firebase) {
-    // Si no está inicializado, devolvemos las listas por defecto fusionadas
     return [...defaultExpenseCategories, ...defaultIncomeCategories];
   }
 
@@ -175,19 +174,20 @@ export async function getCategories(userId) {
   const querySnapshot = await getDocs(catCollection);
   
   const customCategories = [];
+  const overrides = {};
   querySnapshot.forEach((doc) => {
-    customCategories.push({
-      id: doc.id,
-      ...doc.data()
-    });
+    const data = { id: doc.id, ...doc.data() };
+    if (data.originalId) {
+      overrides[data.originalId] = data;
+    } else {
+      customCategories.push(data);
+    }
   });
 
-  // Fusionar predeterminadas con las personalizadas del usuario
-  return [
-    ...defaultExpenseCategories,
-    ...defaultIncomeCategories,
-    ...customCategories
-  ];
+  const mergedExpense = defaultExpenseCategories.map(cat => overrides[cat.id] || cat);
+  const mergedIncome = defaultIncomeCategories.map(cat => overrides[cat.id] || cat);
+
+  return [...mergedExpense, ...mergedIncome, ...customCategories];
 }
 
 /**
@@ -205,10 +205,32 @@ export async function saveCategory(userId, category) {
     name: category.name.trim(),
     emoji: category.emoji.trim() || '🏷️',
     color: category.color || '#8E8E93',
-    type: category.type // 'expense' | 'income'
+    type: category.type
   };
 
-  // Guardamos usando el id generado como nombre del documento
   await setDoc(doc(catCollection, id), data);
   return data;
+}
+
+/**
+ * Actualiza una categoría existente (incluye sobrescribir predeterminadas).
+ */
+export async function updateCategory(userId, categoryId, category) {
+  const firebase = getFirebase();
+  if (!firebase) throw new Error("Firebase no está inicializado.");
+
+  const catCollection = collection(firebase.db, "users", userId, "categories");
+  const docId = categoryId.startsWith('cat_') ? 'override_' + categoryId : categoryId;
+
+  const data = {
+    id: docId,
+    originalId: categoryId.startsWith('cat_') ? categoryId : null,
+    name: category.name.trim(),
+    emoji: category.emoji.trim() || '🏷️',
+    color: category.color || '#8E8E93',
+    type: category.type
+  };
+
+  await setDoc(doc(catCollection, docId), data);
+  return { ...data, id: categoryId };
 }

@@ -752,6 +752,26 @@ h2 {
   border: 1px solid var(--border-color);
   border-radius: 16px;
   box-shadow: var(--shadow);
+  position: relative;
+}
+
+.category-card-edit-btn {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  background: none;
+  border: none;
+  font-size: 14px;
+  cursor: pointer;
+  opacity: 0.5;
+  transition: opacity 0.2s;
+  padding: 4px;
+  line-height: 1;
+}
+
+.category-card-edit-btn:hover,
+.category-card-edit-btn:focus {
+  opacity: 1;
 }
 
 .category-card-emoji {
