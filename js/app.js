@@ -347,36 +347,116 @@ function renderDashboardChart(monthTransactions) {
   
   // Agrupar por categoría
   const categoryTotals = {};
-  let maxAmount = 0;
-  
   expensesOnly.forEach(tx => {
     const key = tx.categoryName || 'Otros';
     categoryTotals[key] = (categoryTotals[key] || 0) + tx.amount;
   });
   
-  // Obtener top 5 categorías
-  const sortedCategories = Object.entries(categoryTotals)
-    .sort((a, b) => b[1] - a[1])
-    .slice(0, 5);
+  // Top 5 + "Otros" con el resto
+  const sorted = Object.entries(categoryTotals).sort((a, b) => b[1] - a[1]);
+  let top5 = sorted.slice(0, 5);
+  const rest = sorted.slice(5);
+  if (rest.length > 0) {
+    const restTotal = rest.reduce((s, [, v]) => s + v, 0);
+    top5.push(['Otros', restTotal]);
+  }
   
-  const topMax = sortedCategories[0][1];
+  const total = top5.reduce((s, [, v]) => s + v, 0);
+  if (total === 0) return;
   
-  sortedCategories.forEach(([name, amount]) => {
-    // Encontrar emoji y color original
+  const size = 180;
+  const cx = size / 2;
+  const cy = size / 2;
+  const radius = 72;
+  const holeRadius = 48;
+  
+  // SVG wrapper
+  const svgNs = 'http://www.w3.org/2000/svg';
+  const svg = document.createElementNS(svgNs, 'svg');
+  svg.setAttribute('width', size);
+  svg.setAttribute('height', size);
+  svg.setAttribute('viewBox', `0 0 ${size} ${size}`);
+  svg.style.display = 'block';
+  svg.style.margin = '0 auto';
+  
+  let currentAngle = -Math.PI / 2;
+  
+  top5.forEach(([name, amount]) => {
     const catData = categoriesCache.find(c => c.name === name) || {};
-    const emoji = catData.emoji || '🏷️';
-    const color = catData.color || 'var(--danger)';
-    const percentageHeight = (amount / topMax) * 100;
+    const color = catData.color || '#8E8E93';
+    const sliceAngle = (amount / total) * 2 * Math.PI;
     
-    const col = document.createElement('div');
-    col.className = 'bar-chart-column';
-    col.innerHTML = `
-      <div style="font-size: 11px; font-weight:600; margin-bottom:4px;">${formatCurrency(amount, true)}</div>
-      <div class="bar-chart-fill expense" style="height: ${Math.max(percentageHeight, 8)}%; background: ${color}; width: 18px;"></div>
-      <div class="bar-chart-label" title="${name}">${emoji}</div>
-    `;
-    chartContainer.appendChild(col);
+    if (sliceAngle > 0) {
+      const startAngle = currentAngle;
+      const endAngle = currentAngle + sliceAngle;
+      
+      const x1 = cx + radius * Math.cos(startAngle);
+      const y1 = cy + radius * Math.sin(startAngle);
+      const x2 = cx + radius * Math.cos(endAngle);
+      const y2 = cy + radius * Math.sin(endAngle);
+      
+      const largeArc = sliceAngle > Math.PI ? 1 : 0;
+      
+      const path = document.createElementNS(svgNs, 'path');
+      path.setAttribute('d', `M ${cx} ${cy} L ${x1} ${y1} A ${radius} ${radius} 0 ${largeArc} 1 ${x2} ${y2} Z`);
+      path.setAttribute('fill', color);
+      svg.appendChild(path);
+      
+      currentAngle = endAngle;
+    }
   });
+  
+  // Center hole (donut)
+  const hole = document.createElementNS(svgNs, 'circle');
+  hole.setAttribute('cx', cx);
+  hole.setAttribute('cy', cy);
+  hole.setAttribute('r', holeRadius);
+  hole.setAttribute('fill', 'var(--bg-primary)');
+  svg.appendChild(hole);
+  
+  // Center text: total
+  const text = document.createElementNS(svgNs, 'text');
+  text.setAttribute('x', cx);
+  text.setAttribute('y', cy - 4);
+  text.setAttribute('text-anchor', 'middle');
+  text.setAttribute('font-size', '13');
+  text.setAttribute('font-weight', '700');
+  text.setAttribute('fill', 'var(--text-primary)');
+  text.textContent = formatCurrency(total, true);
+  svg.appendChild(text);
+  
+  const label = document.createElementNS(svgNs, 'text');
+  label.setAttribute('x', cx);
+  label.setAttribute('y', cy + 12);
+  label.setAttribute('text-anchor', 'middle');
+  label.setAttribute('font-size', '10');
+  label.setAttribute('fill', 'var(--text-secondary)');
+  label.textContent = 'Total';
+  svg.appendChild(label);
+  
+  chartContainer.appendChild(svg);
+  
+  // Legend
+  const legend = document.createElement('div');
+  legend.style.cssText = 'display: flex; flex-direction: column; gap: 6px; margin-top: 16px;';
+  
+  top5.forEach(([name, amount]) => {
+    const catData = categoriesCache.find(c => c.name === name) || {};
+    const color = catData.color || '#8E8E93';
+    const pct = ((amount / total) * 100).toFixed(0);
+    
+    const row = document.createElement('div');
+    row.style.cssText = 'display: flex; align-items: center; gap: 8px;';
+    row.innerHTML = `
+      <div style="width: 10px; height: 10px; border-radius: 3px; background: ${color}; flex-shrink: 0;"></div>
+      <span style="flex: 1; font-size: 12px; color: var(--text-primary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${name}</span>
+      <span style="font-size: 11px; font-weight: 600; color: var(--text-secondary);">${pct}%</span>
+      <span style="font-size: 11px; font-weight: 600; color: var(--text-primary);">${formatCurrency(amount, true)}</span>
+    `;
+    legend.appendChild(row);
+  });
+  
+  chartContainer.appendChild(legend);
 }
 
 function renderRecentTransactions() {
