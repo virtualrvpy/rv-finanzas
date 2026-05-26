@@ -1,0 +1,24 @@
+{
+  "name": "RV Finanzas Personales",
+  "short_name": "RV Finanzas",
+  "description": "App simple, práctica y elegante para registrar tus gastos e ingresos.",
+  "start_url": "./index.html",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "background_color": "#0d0e12",
+  "theme_color": "#0a84ff",
+  "icons": [
+    {
+      "src": "assets/icon-192.png",
+      "type": "image/png",
+      "sizes": "192x192",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "assets/icon-512.png",
+      "type": "image/png",
+      "sizes": "512x512",
+      "purpose": "any maskable"
+    }
+  ]
+}

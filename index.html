@@ -1,0 +1,380 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>RV Finanzas Personales</title>
+  
+  <!-- PWA Meta Tags -->
+  <meta name="theme-color" content="#0d0e12">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="RV Finanzas">
+  <link rel="apple-touch-icon" href="assets/icon-192.png">
+  <link rel="manifest" href="manifest.json">
+  
+  <!-- CSS Stylesheet -->
+  <link rel="stylesheet" href="css/styles.css">
+</head>
+<body data-theme="dark">
+
+  <div id="app-container">
+    
+    <!-- 1. Pantalla de Bienvenida / Login -->
+    <div id="view-login" class="welcome-screen" style="display: none;">
+      <div class="app-logo-large">💰</div>
+      <h1>RV Finanzas</h1>
+      <p>Registra tus gastos e ingresos de forma simple, práctica y elegante.</p>
+      
+      <button id="google-login-btn" class="login-btn">
+        <!-- SVG Google Icon -->
+        <svg viewBox="0 0 24 24" width="24" height="24">
+          <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+          <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+          <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22c-.87-2.6-3.3-4.53-6.16-4.53z"/>
+          <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
+        </svg>
+        Entrar con Google
+      </button>
+      
+      <div style="margin-top: 30px;">
+        <a href="#setup" style="color: var(--accent); font-size: 13px; text-decoration: none;">Configurar Firebase Manualmente</a>
+      </div>
+    </div>
+
+    <!-- 2. Pantalla de Configuración Manual de Firebase -->
+    <div id="view-setup" class="setup-container" style="display: none;">
+      <h1 style="text-align: center;">Configurar Firebase</h1>
+      <p class="setup-info-text">
+        Ingresa las credenciales de tu proyecto de Firebase. Se guardarán de forma segura en este navegador para establecer la sincronización.
+      </p>
+      
+      <form id="firebase-setup-form" style="width: 100%;">
+        <div class="form-group">
+          <label>API Key</label>
+          <input type="text" id="setup-apikey" class="form-control" placeholder="AIzaSy..." required>
+        </div>
+        <div class="form-group">
+          <label>Auth Domain</label>
+          <input type="text" id="setup-authdomain" class="form-control" placeholder="proyecto.firebaseapp.com" required>
+        </div>
+        <div class="form-group">
+          <label>Project ID</label>
+          <input type="text" id="setup-projectid" class="form-control" placeholder="proyecto-id" required>
+        </div>
+        <div class="form-group">
+          <label>Storage Bucket</label>
+          <input type="text" id="setup-storagebucket" class="form-control" placeholder="proyecto.appspot.com">
+        </div>
+        <div class="form-group">
+          <label>Messaging Sender ID</label>
+          <input type="text" id="setup-messagingid" class="form-control" placeholder="1234567890">
+        </div>
+        <div class="form-group">
+          <label>App ID</label>
+          <input type="text" id="setup-appid" class="form-control" placeholder="1:1234:web:abcd" required>
+        </div>
+        
+        <button type="submit" class="btn-primary" style="margin-top: 10px;">Guardar y Conectar</button>
+        <button type="button" id="setup-cancel-btn" class="btn-primary" style="background: var(--bg-tertiary); color: var(--text-primary); margin-top: 12px; box-shadow: none;">Cancelar</button>
+      </form>
+    </div>
+
+    <!-- Contenedor Principal (Navbar + Contenido) -->
+    <div id="main-view" style="display: none; flex-direction: column; flex: 1;">
+      
+      <!-- Contenido SPA Dinámico -->
+      <main id="page-content">
+        
+        <!-- SECCIÓN: Dashboard -->
+        <section id="sect-dashboard" class="view-section" style="display: none;">
+          <div class="card balance-card">
+            <div style="display: flex; justify-content: center; align-items: center; gap: 8px; margin-bottom: 8px;">
+              <div class="balance-label" style="margin-bottom: 0;">Balance Neto</div>
+              <button id="toggle-privacy-btn" type="button" style="background: none; border: none; color: rgba(255, 255, 255, 0.6); cursor: pointer; padding: 4px; display: flex; align-items: center; justify-content: center; -webkit-tap-highlight-color: transparent;">
+                <svg id="privacy-icon" viewBox="0 0 24 24" width="18" height="18" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round" style="pointer-events: none;">
+                  <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+                  <circle cx="12" cy="12" r="3"></circle>
+                </svg>
+              </button>
+            </div>
+            <div id="db-balance" class="balance-amount">Gs. 0</div>
+            
+            <div class="balance-row">
+              <div class="balance-col">
+                <div class="sub-amount-label">Ingresos</div>
+                <div id="db-income" class="sub-amount income">Gs. 0</div>
+              </div>
+              <div class="balance-col">
+                <div class="sub-amount-label">Gastos</div>
+                <div id="db-expense" class="sub-amount expense">Gs. 0</div>
+              </div>
+            </div>
+          </div>
+          
+          <div class="card">
+            <h2>Distribución de Gastos</h2>
+            <!-- Gráfico de distribución minimalista construido en JS con barras de progreso CSS o Canvas -->
+            <div id="dashboard-chart-container" class="bar-chart-container">
+              <!-- Renderizado dinámico desde JS -->
+            </div>
+          </div>
+          
+          <div class="card">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+              <h2>Gastos del Mes Actual</h2>
+              <a href="#history" style="color: var(--accent); font-size: 13px; text-decoration: none; font-weight: 500;">Ver Todos</a>
+            </div>
+            <div id="db-recent-list" class="transaction-list">
+              <!-- Renderizado dinámico desde JS -->
+            </div>
+          </div>
+        </section>
+        
+        <!-- SECCIÓN: Historial Detallado -->
+        <section id="sect-history" class="view-section" style="display: none;">
+          <h1>Historial</h1>
+          
+          <!-- Panel de Filtros -->
+          <div class="filter-bar">
+            <div class="filter-row">
+              <div class="search-input-container">
+                <svg class="search-icon-svg" viewBox="0 0 24 24">
+                  <circle cx="11" cy="11" r="8"></circle>
+                  <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+                </svg>
+                <input type="text" id="hist-search" class="search-input" placeholder="Buscar por concepto o comentario...">
+              </div>
+            </div>
+            
+            <div class="filter-row">
+              <select id="hist-filter-type" class="filter-select">
+                <option value="all">Todos los Tipos</option>
+                <option value="expense">Solo Gastos</option>
+                <option value="income">Solo Ingresos</option>
+              </select>
+              
+              <select id="hist-filter-category" class="filter-select">
+                <option value="all">Todas las Categorías</option>
+              </select>
+            </div>
+
+            <div class="filter-row">
+              <select id="hist-filter-date" class="filter-select">
+                <option value="this-month">Este Mes</option>
+                <option value="last-month">Mes Anterior</option>
+                <option value="last-7-days">Últimos 7 días</option>
+                <option value="all">Todo el Historial</option>
+                <option value="custom">Rango Personalizado...</option>
+              </select>
+            </div>
+            
+            <div id="hist-custom-date-row" class="filter-row" style="display: none; margin-top: 10px;">
+              <input type="date" id="hist-date-start" class="filter-select" style="font-family:inherit;">
+              <input type="date" id="hist-date-end" class="filter-select" style="font-family:inherit;">
+            </div>
+          </div>
+          
+          <!-- Lista de Transacciones Detallada -->
+          <div id="history-list" class="transaction-list">
+            <!-- Renderizado dinámico desde JS -->
+          </div>
+        </section>
+        
+        <!-- SECCIÓN: Añadir Movimiento (+) -->
+        <section id="sect-add" class="view-section" style="display: none;">
+          <h1>Nuevo Movimiento</h1>
+          
+          <form id="add-transaction-form">
+            <!-- Tipo Gasto o Ingreso -->
+            <div class="type-selector">
+              <div id="type-opt-expense" class="type-option expense-type selected">Gasto</div>
+              <div id="type-opt-income" class="type-option income-type">Ingreso</div>
+            </div>
+            
+            <!-- Monto -->
+            <div class="form-group">
+              <label for="add-amount">Monto (Gs.)</label>
+              <input type="number" id="add-amount" class="form-control" step="1" inputmode="numeric" placeholder="0" style="font-size: 28px; font-weight: 700; text-align: center; padding: 18px;" required>
+            </div>
+            
+            <!-- Concepto / Descripción -->
+            <div class="form-group">
+              <label for="add-description">Concepto</label>
+              <input type="text" id="add-description" class="form-control" placeholder="Ej: Supermercado" required>
+            </div>
+            
+            <!-- Fecha y Hora -->
+            <div class="form-group">
+              <label for="add-datetime">Fecha y Hora</label>
+              <input type="datetime-local" id="add-datetime" class="form-control" required style="font-family: inherit;">
+            </div>
+            
+            <!-- Categoría Selector Grid -->
+            <div class="form-group">
+              <label>Categoría</label>
+              <div id="add-category-grid" class="category-grid">
+                <!-- Se inyecta dinámicamente según sea Gasto o Ingreso -->
+              </div>
+            </div>
+            
+            <!-- Comentarios (Opcional) -->
+            <div class="form-group">
+              <label for="add-comments">Comentarios (Opcional)</label>
+              <textarea id="add-comments" class="form-control" rows="3" placeholder="Detalles o notas adicionales sobre esta transacción..." style="resize: none; font-family: inherit;"></textarea>
+            </div>
+            
+            <button type="submit" class="btn-primary" style="margin-top: 10px; margin-bottom: 40px;">Guardar Transacción</button>
+          </form>
+        </section>
+        
+        <!-- SECCIÓN: Categorías -->
+        <section id="sect-categories" class="view-section" style="display: none;">
+          <h1>Mis Categorías</h1>
+          
+          <div id="categories-list-container" class="category-manager-grid">
+            <!-- Cargado dinámico de categorías -->
+          </div>
+          
+          <!-- Formulario de Creación de Categoría Personalizada -->
+          <div class="card">
+            <h2>Crear Categoría Personalizada</h2>
+            <form id="create-category-form">
+              <div class="form-group">
+                <label for="new-cat-name">Nombre</label>
+                <input type="text" id="new-cat-name" class="form-control" placeholder="Ej: Mascotas" required>
+              </div>
+              
+              <div class="form-group">
+                <label>Tipo</label>
+                <div class="type-selector" style="margin-bottom: 10px;">
+                  <div id="cat-type-expense" class="type-option expense-type selected" style="padding: 8px;">Gasto</div>
+                  <div id="cat-type-income" class="type-option income-type" style="padding: 8px;">Ingreso</div>
+                </div>
+              </div>
+              
+              <div class="form-group">
+                <label>Selecciona un Emoji</label>
+                <div id="new-cat-emoji-list" class="emoji-selector-row">
+                  <!-- JS inyectará opciones de emojis -->
+                </div>
+              </div>
+              
+              <div class="form-group">
+                <label>Selecciona un Color</label>
+                <div id="new-cat-color-list" class="color-selector-row">
+                  <!-- JS inyectará opciones de colores -->
+                </div>
+              </div>
+              
+              <button type="submit" class="btn-primary">Crear Categoría</button>
+            </form>
+          </div>
+        </section>
+        
+        <!-- SECCIÓN: Ajustes / Configuración -->
+        <section id="sect-settings" class="view-section" style="display: none;">
+          <h1>Ajustes</h1>
+          
+          <!-- Datos del Perfil -->
+          <div class="card">
+            <div class="profile-row">
+              <img id="user-avatar" class="profile-avatar" src="" alt="Avatar" style="display: none;">
+              <div id="user-avatar-placeholder" class="profile-avatar" style="display: flex; align-items: center; justify-content: center; font-size: 24px; font-weight: bold; background-color: var(--accent); color: white;">U</div>
+              <div>
+                <div id="user-display-name" class="profile-name">Usuario</div>
+                <div id="user-email" class="profile-email">usuario@correo.com</div>
+              </div>
+            </div>
+          </div>
+          
+          <!-- Ajustes Varios -->
+          <div class="card">
+            <div class="settings-option">
+              <span class="settings-option-label">Modo Oscuro</span>
+              <label class="toggle-switch">
+                <input type="checkbox" id="settings-darkmode-toggle" checked>
+                <span class="toggle-slider"></span>
+              </label>
+            </div>
+            
+            <div class="settings-option">
+              <span class="settings-option-label">Estado de Firebase</span>
+              <span id="firebase-status-badge" class="firebase-badge inactive">Desconectado</span>
+            </div>
+            
+            <div class="settings-option" id="reset-config-option" style="cursor: pointer;">
+              <span class="settings-option-label" style="color: var(--danger);">Reestablecer Configuración</span>
+              <svg viewBox="0 0 24 24" width="18" height="18" stroke="var(--danger)" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M21 4v6h-6"></path>
+                <path d="M18 14.8C16.8 17.7 13.9 20 10.5 20 5.8 20 2 16.2 2 11.5S5.8 3 10.5 3c3.7 0 6.9 2.4 8 5.8"></path>
+              </svg>
+            </div>
+          </div>
+          
+          <button id="logout-btn" class="btn-primary" style="background: var(--bg-secondary); color: var(--danger); border: 1px solid var(--border-color); box-shadow: none; margin-top: 10px;">
+            Cerrar Sesión
+          </button>
+        </section>
+        
+      </main>
+
+      <!-- Barra de Navegación Inferior -->
+      <nav class="bottom-nav">
+        <a href="#dashboard" class="nav-item active" id="nav-dashboard">
+          <svg viewBox="0 0 24 24">
+            <rect x="3" y="3" width="7" height="9"></rect>
+            <rect x="14" y="3" width="7" height="5"></rect>
+            <rect x="14" y="12" width="7" height="9"></rect>
+            <rect x="3" y="16" width="7" height="5"></rect>
+          </svg>
+          Resumen
+        </a>
+        <a href="#history" class="nav-item" id="nav-history">
+          <svg viewBox="0 0 24 24">
+            <line x1="8" y1="6" x2="21" y2="6"></line>
+            <line x1="8" y1="12" x2="21" y2="12"></line>
+            <line x1="8" y1="18" x2="21" y2="18"></line>
+            <line x1="3" y1="6" x2="3.01" y2="6"></line>
+            <line x1="3" y1="12" x2="3.01" y2="12"></line>
+            <line x1="3" y1="18" x2="3.01" y2="18"></line>
+          </svg>
+          Historial
+        </a>
+        
+        <!-- Botón Central de Agregar (+) -->
+        <a href="#add" class="nav-item nav-add-btn" id="nav-add">
+          <svg viewBox="0 0 24 24">
+            <line x1="12" y1="5" x2="12" y2="19"></line>
+            <line x1="5" y1="12" x2="19" y2="12"></line>
+          </svg>
+        </a>
+        
+        <a href="#categories" class="nav-item" id="nav-categories">
+          <svg viewBox="0 0 24 24">
+            <path d="M12 2L2 7l10 5 10-5-10-5z"></path>
+            <path d="M2 17l10 5 10-5"></path>
+            <path d="M2 12l10 5 10-5"></path>
+          </svg>
+          Categorías
+        </a>
+        <a href="#settings" class="nav-item" id="nav-settings">
+          <svg viewBox="0 0 24 24">
+            <circle cx="12" cy="12" r="3"></circle>
+            <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+          </svg>
+          Ajustes
+        </a>
+      </nav>
+      
+    </div>
+
+    <!-- Notificaciones flotantes tipo Toast -->
+    <div id="toast-notification" class="toast-notification"></div>
+
+  </div>
+
+  <!-- Lógica Principal de la App -->
+  <script type="module" src="js/app.js"></script>
+</body>
+</html>
