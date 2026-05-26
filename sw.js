@@ -1,12 +1,11 @@
-const CACHE_NAME = 'rv-finanzas-v4';
+const CACHE_NAME = 'rv-finanzas-v5';
 const ASSETS = [
   './',
   './index.html',
-  './css/styles.css',
+  './css/styles.css?v=5',
   './js/config.js',
   './js/auth.js',
-  './js/db.js',
-  './js/app.js',
+  './js/app.js?v=5',
   './manifest.json',
   'https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js',
   'https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js',

@@ -354,13 +354,15 @@ function renderComparison() {
   }
   const current = getPeriodMetrics(0, true);
   const prev = getPeriodMetrics(-1, true);
-  const fmt = (diff) => {
-    if (diff > 0) return `<span class="period-comp up">↑ ${formatCurrency(diff, true)}</span>`;
-    if (diff < 0) return `<span class="period-comp down">↓ ${formatCurrency(-diff, true)}</span>`;
-    return `<span class="period-comp same">—</span>`;
+  const fmt = (diff, invertColors = false) => {
+    if (diff === 0) return `<span class="period-comp same">—</span>`;
+    const isUp = diff > 0;
+    const cls = isUp !== invertColors ? 'up' : 'down';
+    const arrow = isUp ? '↑' : '↓';
+    return `<span class="period-comp ${cls}">${arrow} ${formatCurrency(Math.abs(diff), true)}</span>`;
   };
   document.getElementById('db-income-comp').innerHTML = fmt(current.income - prev.income);
-  document.getElementById('db-expense-comp').innerHTML = fmt(current.expense - prev.expense);
+  document.getElementById('db-expense-comp').innerHTML = fmt(current.expense - prev.expense, true);
 }
 
 // === PRESUPUESTOS POR CATEGORÍA ===
