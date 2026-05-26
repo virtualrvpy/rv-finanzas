@@ -11,6 +11,7 @@ let editTransactionId = null;
 let editCategoryId = null;
 let activePeriodOffset = 0;
 let budgets = {};
+let categoriesCache = [];
 let transactionsCache = [];
 let unsubscribeAuth = null;
 
