@@ -9,7 +9,8 @@ let activeView = 'dashboard';
 let isValuesHidden = localStorage.getItem('rv_privacy') === 'true';
 let editTransactionId = null;
 let editCategoryId = null;
-let categoriesCache = [];
+let activePeriodOffset = 0;
+let budgets = {};
 let transactionsCache = [];
 let unsubscribeAuth = null;
 
@@ -21,6 +22,7 @@ const COLORS = ['#FF9500', '#007AFF', '#5856D6', '#FF2D55', '#AF52DE', '#34C759'
 document.addEventListener('DOMContentLoaded', () => {
   initTheme();
   initPrivacy();
+  loadBudgets();
   registerServiceWorker();
   setupEventListeners();
   checkFirebaseSetup();
@@ -203,7 +205,7 @@ function renderView(view) {
       renderCategories();
       break;
     case 'settings':
-      // El perfil y el dark mode ya se sincronizan mediante eventos y login
+      renderBudgetSettings();
       break;
   }
 }
@@ -217,35 +219,70 @@ function savePeriodCloseDay(day) {
   localStorage.setItem('rv_period_close_day', day.toString());
 }
 
-function getCurrentPeriod() {
+function getPeriod(offset) {
   const closeDay = getPeriodCloseDay();
   const now = new Date();
-  const y = now.getFullYear();
-  const m = now.getMonth();
+  let y = now.getFullYear();
+  let m = now.getMonth();
 
+  // Calculate base month (current period start month)
+  let baseM, baseY;
   if (closeDay === 1) {
-    const start = new Date(y, m, 1);
-    const end = new Date(y, m + 1, 0, 23, 59, 59, 999);
-    const label = now.toLocaleDateString('es-PY', { month: 'long', year: 'numeric' });
-    return { startDate: start, endDate: end, label };
+    baseM = m;
+    baseY = y;
+  } else {
+    baseM = now.getDate() < closeDay ? m - 1 : m;
+    baseY = y;
+    if (baseM < 0) { baseM = 11; baseY--; }
   }
 
-  // If today is before close day → period started previous month
-  let sm = now.getDate() < closeDay ? m - 1 : m;
-  let sy = y;
-  if (sm < 0) { sm = 11; sy--; }
+  // Apply offset
+  baseM += offset;
+  while (baseM < 0) { baseM += 12; baseY--; }
+  while (baseM > 11) { baseM -= 12; baseY++; }
 
-  const start = new Date(sy, sm, closeDay);
-  const end = new Date(sy, sm + 1, closeDay - 1, 23, 59, 59, 999);
+  if (closeDay === 1) {
+    const start = new Date(baseY, baseM, 1);
+    const end = new Date(baseY, baseM + 1, 0, 23, 59, 59, 999);
+    const label = start.toLocaleDateString('es-PY', { month: 'long', year: 'numeric' });
+    return { startDate: start, endDate: end, label, offset };
+  }
+
+  const start = new Date(baseY, baseM, closeDay);
+  const end = new Date(baseY, baseM + 1, closeDay - 1, 23, 59, 59, 999);
   const label = end.toLocaleDateString('es-PY', { month: 'long', year: 'numeric' });
+  return { startDate: start, endDate: end, label, offset };
+}
 
-  return { startDate: start, endDate: end, label };
+function getCurrentPeriod() {
+  return getPeriod(activePeriodOffset);
+}
+
+function goPrevPeriod() {
+  activePeriodOffset--;
+  if (activePeriodOffset < 0 && document.getElementById('period-next-btn')) {
+    document.getElementById('period-next-btn').style.display = '';
+  }
+  if (currentUser) renderDashboard();
+}
+
+function goNextPeriod() {
+  activePeriodOffset++;
+  if (activePeriodOffset >= 0) {
+    activePeriodOffset = 0;
+  }
+  if (currentUser) renderDashboard();
+}
+
+function resetPeriod() {
+  activePeriodOffset = 0;
+  if (currentUser) renderDashboard();
 }
 
 function getPeriodPreview(closeDay) {
   const now = new Date();
-  const y = now.getFullYear();
   const m = now.getMonth();
+  const y = now.getFullYear();
   let sm = now.getDate() < closeDay ? m - 1 : m;
   let sy = y;
   if (sm < 0) { sm = 11; sy--; }
@@ -281,12 +318,77 @@ function updateBalanceWarning(balance) {
   }
 }
 
+function getPeriodMetrics(offset) {
+  const p = getPeriod(offset);
+  const txs = transactionsCache.filter(tx => tx.date >= p.startDate && tx.date <= p.endDate);
+  let income = 0, expense = 0;
+  txs.forEach(tx => {
+    if (tx.type === 'income') income += tx.amount;
+    else expense += tx.amount;
+  });
+  return { income, expense, balance: income - expense, label: p.label };
+}
+
+function renderComparison(current) {
+  const prev = getPeriodMetrics(activePeriodOffset - 1);
+  const fmt = (diff) => {
+    if (diff > 0) return `<span class="period-comp up">↑ ${formatCurrency(diff, true)}</span>`;
+    if (diff < 0) return `<span class="period-comp down">↓ ${formatCurrency(-diff, true)}</span>`;
+    return `<span class="period-comp same">—</span>`;
+  };
+  const incomeEl = document.getElementById('db-income-comp');
+  const expenseEl = document.getElementById('db-expense-comp');
+  if (incomeEl) incomeEl.innerHTML = activePeriodOffset === 0 ? fmt(current.income - prev.income) : '';
+  if (expenseEl) expenseEl.innerHTML = activePeriodOffset === 0 ? fmt(prev.expense - current.expense) : '';
+}
+
+// === PRESUPUESTOS POR CATEGORÍA ===
+function loadBudgets() {
+  try { budgets = JSON.parse(localStorage.getItem('rv_budgets')) || {}; } catch { budgets = {}; }
+}
+
+function saveBudgets() {
+  localStorage.setItem('rv_budgets', JSON.stringify(budgets));
+}
+
+function renderBudgetSettings() {
+  const container = document.getElementById('budget-list');
+  if (!container) return;
+  container.innerHTML = '';
+  const catTypeExpense = document.getElementById('cat-type-expense');
+  const relevant = categoriesCache.filter(c => c.type === 'expense');
+  relevant.forEach(cat => {
+    const row = document.createElement('div');
+    row.className = 'budget-row';
+    row.innerHTML = `
+      <span class="budget-emoji">${cat.emoji}</span>
+      <span class="budget-name">${cat.name}</span>
+      <input type="number" class="budget-input" data-id="${cat.id}" min="0" step="100000" value="${budgets[cat.id] || ''}" placeholder="0">
+      <span style="font-size:10px;color:var(--text-secondary);">Gs.</span>
+    `;
+    container.appendChild(row);
+  });
+  container.querySelectorAll('.budget-input').forEach(inp => {
+    inp.addEventListener('change', () => {
+      const val = parseInt(inp.value);
+      if (val > 0) budgets[inp.dataset.id] = val;
+      else delete budgets[inp.dataset.id];
+      saveBudgets();
+    });
+  });
+}
+
 function updatePeriodIndicator() {
   const el = document.getElementById('period-indicator');
   if (el) {
     const p = getCurrentPeriod();
     const fmt = (d) => d.toLocaleDateString('es-PY', { day: 'numeric', month: 'short' });
-    el.textContent = `Periodo: ${fmt(p.startDate)} - ${fmt(p.endDate)}`;
+    const txt = `${fmt(p.startDate)} - ${fmt(p.endDate)}`;
+    el.textContent = activePeriodOffset === 0 ? txt : `${txt} (${p.label})`;
+  }
+  const nextBtn = document.getElementById('period-next-btn');
+  if (nextBtn) {
+    nextBtn.style.display = activePeriodOffset < 0 ? '' : 'none';
   }
 }
 
@@ -318,6 +420,7 @@ function renderDashboard() {
   document.getElementById('db-expense').textContent = isValuesHidden ? 'Gs. •••••' : formatCurrency(totalExpense);
   
   updateBalanceWarning(balance);
+  renderComparison({ income: totalIncome, expense: totalExpense, balance });
 
   // Colores dinámicos del balance
   const balanceEl = document.getElementById('db-balance');
@@ -438,20 +541,31 @@ function renderDashboardChart(monthTransactions) {
   
   // Legend
   const legend = document.createElement('div');
-  legend.style.cssText = 'display: flex; flex-direction: column; gap: 6px; margin-top: 16px;';
-  
+  legend.style.cssText = 'display: flex; flex-direction: column; gap: 8px; margin-top: 16px; width: 100%;';
+
   top5.forEach(([name, amount]) => {
     const catData = categoriesCache.find(c => c.name === name) || {};
     const color = catData.color || '#8E8E93';
     const pct = ((amount / total) * 100).toFixed(0);
-    
+    const budget = catData.id ? budgets[catData.id] : 0;
+    let barHtml = '';
+    if (budget > 0) {
+      const used = Math.min((amount / budget) * 100, 100);
+      const barClass = used >= 100 ? 'over' : used >= 80 ? 'warn' : 'ok';
+      barHtml = `<div class="budget-bar-wrap"><div class="budget-bar-fill ${barClass}" style="width:${used}%"></div></div>
+        <span style="font-size:10px;color:var(--text-secondary);font-weight:600;">${formatCurrency(amount, true)} / ${formatCurrency(budget, true)}</span>`;
+    }
+
     const row = document.createElement('div');
-    row.style.cssText = 'display: flex; align-items: center; gap: 8px;';
+    row.style.cssText = 'display: flex; flex-direction: column; gap: 2px;';
     row.innerHTML = `
-      <div style="width: 10px; height: 10px; border-radius: 3px; background: ${color}; flex-shrink: 0;"></div>
-      <span style="flex: 1; font-size: 12px; color: var(--text-primary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${name}</span>
-      <span style="font-size: 11px; font-weight: 600; color: var(--text-secondary);">${pct}%</span>
-      <span style="font-size: 11px; font-weight: 600; color: var(--text-primary);">${formatCurrency(amount, true)}</span>
+      <div style="display: flex; align-items: center; gap: 8px;">
+        <div style="width: 10px; height: 10px; border-radius: 3px; background: ${color}; flex-shrink: 0;"></div>
+        <span style="flex: 1; font-size: 12px; color: var(--text-primary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${name}</span>
+        <span style="font-size: 11px; font-weight: 600; color: var(--text-secondary);">${pct}%</span>
+        ${!budget ? `<span style="font-size: 11px; font-weight: 600; color: var(--text-primary);">${formatCurrency(amount, true)}</span>` : ''}
+      </div>
+      ${barHtml}
     `;
     legend.appendChild(row);
   });
@@ -507,7 +621,19 @@ async function renderHistory() {
   const type = document.getElementById('hist-filter-type').value;
   const categoryId = catFilter.value;
   const dateOption = document.getElementById('hist-filter-date').value;
+  const yearFilter = document.getElementById('hist-filter-year').value;
   const searchText = document.getElementById('hist-search').value;
+  
+  // Populate year dropdown
+  const yearSelect = document.getElementById('hist-filter-year');
+  const activeYear = yearSelect.value;
+  const years = new Set();
+  transactionsCache.forEach(tx => years.add(tx.date.getFullYear()));
+  years.add(new Date().getFullYear());
+  const sortedYears = Array.from(years).sort((a, b) => b - a);
+  yearSelect.innerHTML = '<option value="all">Todos los Años</option>' + sortedYears.map(y => `<option value="${y}">${y}</option>`).join('');
+  if (sortedYears.includes(parseInt(activeYear))) yearSelect.value = activeYear;
+  yearSelect.style.display = dateOption === 'all' || dateOption === 'custom' ? 'inline-block' : 'none';
   
   let startDate = null;
   let endDate = null;
@@ -538,6 +664,7 @@ async function renderHistory() {
   const filtered = transactionsCache.filter(tx => {
     if (type !== 'all' && tx.type !== type) return false;
     if (categoryId !== 'all' && tx.categoryId !== categoryId) return false;
+    if (yearFilter !== 'all' && tx.date.getFullYear() !== parseInt(yearFilter)) return false;
     
     if (startDate) {
       // Normalizar horas
@@ -849,6 +976,7 @@ function createTransactionDOM(tx) {
           <span>ID de Transacción: ${tx.id.substring(0, 8)}...</span>
           <div>
             <button class="edit-btn-sm" data-id="${tx.id}">Editar</button>
+            <button class="dup-btn-sm" data-id="${tx.id}">Duplicar</button>
             <button class="delete-btn-sm" data-id="${tx.id}">Eliminar</button>
           </div>
         </div>
@@ -876,6 +1004,35 @@ function createTransactionDOM(tx) {
     e.stopPropagation();
     editTransactionId = e.target.dataset.id;
     window.location.hash = '#add';
+  });
+
+  // Listener para duplicar transacción
+  item.querySelector('.dup-btn-sm').addEventListener('click', async (e) => {
+    e.stopPropagation();
+    const id = e.target.dataset.id;
+    const original = transactionsCache.find(t => t.id === id);
+    if (!original) return;
+    const copy = {
+      amount: original.amount,
+      type: original.type,
+      categoryId: original.categoryId,
+      categoryName: original.categoryName,
+      categoryEmoji: original.categoryEmoji,
+      categoryColor: original.categoryColor,
+      description: original.description + ' (copia)',
+      comments: original.comments || '',
+      date: new Date()
+    };
+    try {
+      await saveTransaction(currentUser.uid, copy);
+      showToast('Transacción duplicada', 'success');
+      await refreshTransactions();
+      if (activeView === 'dashboard') renderDashboard();
+      else if (activeView === 'history') renderHistory();
+    } catch (err) {
+      console.error(err);
+      showToast('Error al duplicar', 'error');
+    }
   });
 
   // Listener para borrar transacción
@@ -911,6 +1068,12 @@ function setupEventListeners() {
   if (privacyBtn) {
     privacyBtn.addEventListener('click', togglePrivacy);
   }
+
+  // --- PERIOD NAV ---
+  const prevBtn = document.getElementById('period-prev-btn');
+  const nextBtn = document.getElementById('period-next-btn');
+  if (prevBtn) prevBtn.addEventListener('click', goPrevPeriod);
+  if (nextBtn) nextBtn.addEventListener('click', goNextPeriod);
 
   // --- LOGIN ---
   document.getElementById('google-login-btn').addEventListener('click', async () => {
@@ -1102,14 +1265,19 @@ function setupEventListeners() {
   document.getElementById('hist-filter-type').addEventListener('change', renderHistory);
   document.getElementById('hist-filter-category').addEventListener('change', renderHistory);
   document.getElementById('hist-search').addEventListener('input', renderHistory);
+  const yearFilterSelect = document.getElementById('hist-filter-year');
+  if (yearFilterSelect) yearFilterSelect.addEventListener('change', renderHistory);
   
   const dateFilter = document.getElementById('hist-filter-date');
   dateFilter.addEventListener('change', (e) => {
     const customRow = document.getElementById('hist-custom-date-row');
+    const yearSel = document.getElementById('hist-filter-year');
     if (e.target.value === 'custom') {
       customRow.style.display = 'flex';
+      if (yearSel) yearSel.style.display = 'none';
     } else {
       customRow.style.display = 'none';
+      if (yearSel) yearSel.style.display = (e.target.value === 'all') ? 'inline-block' : 'none';
       renderHistory();
     }
   });

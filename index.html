@@ -98,17 +98,21 @@
                 </svg>
               </button>
             </div>
-            <div id="period-indicator" style="font-size: 11px; color: var(--text-secondary); text-align: center; margin-bottom: 8px;"></div>
+            <div id="period-nav" style="display: flex; align-items: center; justify-content: center; gap: 12px; margin-bottom: 4px;">
+              <button id="period-prev-btn" type="button" style="background: none; border: none; color: var(--text-secondary); cursor: pointer; font-size: 16px; padding: 4px; line-height: 1;">◀</button>
+              <div id="period-indicator" style="font-size: 11px; color: var(--text-secondary);"></div>
+              <button id="period-next-btn" type="button" style="background: none; border: none; color: var(--text-secondary); cursor: pointer; font-size: 16px; padding: 4px; line-height: 1;">▶</button>
+            </div>
             <div id="db-balance" class="balance-amount">Gs. 0</div>
             <div id="balance-warning" style="display: none; margin-top: 8px; padding: 8px 12px; border-radius: 10px; background: rgba(255, 45, 85, 0.12); color: var(--danger); font-size: 12px; font-weight: 600; text-align: center;">⚠️ Balance por debajo del mínimo configurado</div>
             
             <div class="balance-row">
               <div class="balance-col">
-                <div class="sub-amount-label">Ingresos</div>
+                <div class="sub-amount-label">Ingresos <span id="db-income-comp" class="period-comp"></span></div>
                 <div id="db-income" class="sub-amount income">Gs. 0</div>
               </div>
               <div class="balance-col">
-                <div class="sub-amount-label">Gastos</div>
+                <div class="sub-amount-label">Gastos <span id="db-expense-comp" class="period-comp"></span></div>
                 <div id="db-expense" class="sub-amount expense">Gs. 0</div>
               </div>
             </div>
@@ -163,11 +167,13 @@
 
             <div class="filter-row">
               <select id="hist-filter-date" class="filter-select">
-                <option value="this-month">Este Mes</option>
-                <option value="last-month">Mes Anterior</option>
+                <option value="this-month">Este Periodo</option>
+                <option value="last-month">Periodo Anterior</option>
                 <option value="last-7-days">Últimos 7 días</option>
                 <option value="all">Todo el Historial</option>
                 <option value="custom">Rango Personalizado...</option>
+              </select>
+              <select id="hist-filter-year" class="filter-select" style="display: none;">
               </select>
             </div>
             
@@ -315,6 +321,11 @@
                 <input type="number" id="balance-threshold" min="0" step="100000" value="3000000" style="width: 100px; text-align: center; padding: 6px; border-radius: 8px; border: 1px solid var(--border-color); background: var(--bg-secondary); color: var(--text-primary); font-family: inherit; font-size: 14px; font-weight: 600;">
                 <span style="font-size: 12px; color: var(--text-secondary);">Gs.</span>
               </div>
+            </div>
+
+            <div class="settings-option" style="flex-direction: column; align-items: stretch; gap: 8px;">
+              <span class="settings-option-label">Presupuestos por Categoría</span>
+              <div id="budget-list" style="display: flex; flex-direction: column; gap: 6px; max-height: 200px; overflow-y: auto;"></div>
             </div>
 
             <div class="settings-option">

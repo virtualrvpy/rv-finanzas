@@ -611,6 +611,24 @@ h2 {
   opacity: 0.8;
 }
 
+.dup-btn-sm {
+  background-color: var(--bg-tertiary);
+  color: var(--text-primary);
+  border: none;
+  padding: 6px 12px;
+  border-radius: 8px;
+  font-family: inherit;
+  font-weight: 600;
+  font-size: 11px;
+  cursor: pointer;
+  transition: opacity 0.2s;
+  margin-right: 6px;
+}
+
+.dup-btn-sm:active {
+  opacity: 0.8;
+}
+
 /* Primary Button */
 .btn-primary {
   display: block;
@@ -1032,3 +1050,58 @@ input:checked + .toggle-slider:before {
   0% { background-position: 200% 0; }
   100% { background-position: -200% 0; }
 }
+
+/* Period nav */
+.period-comp {
+  font-size: 10px;
+  font-weight: 600;
+  margin-left: 2px;
+}
+
+.period-comp.up { color: var(--success); }
+.period-comp.down { color: var(--danger); }
+.period-comp.same { color: var(--text-secondary); }
+
+/* Budget bar */
+.budget-bar-wrap {
+  width: 100%;
+  height: 4px;
+  background: var(--bg-tertiary);
+  border-radius: 2px;
+  overflow: hidden;
+  margin-top: 2px;
+}
+
+.budget-bar-fill {
+  height: 100%;
+  border-radius: 2px;
+  transition: width 0.4s ease;
+}
+
+.budget-bar-fill.ok { background: var(--success); }
+.budget-bar-fill.warn { background: var(--warning, #FF9500); }
+.budget-bar-fill.over { background: var(--danger); }
+
+/* Budget input row */
+.budget-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+}
+
+.budget-row input {
+  width: 80px;
+  text-align: center;
+  padding: 4px 6px;
+  border-radius: 6px;
+  border: 1px solid var(--border-color);
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.budget-row .budget-emoji { font-size: 14px; }
+.budget-row .budget-name { flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
