@@ -204,13 +204,78 @@ function renderView(view) {
   }
 }
 
+// === PERIODOS PERSONALIZADOS ===
+function getPeriodCloseDay() {
+  return parseInt(localStorage.getItem('rv_period_close_day')) || 1;
+}
+
+function savePeriodCloseDay(day) {
+  localStorage.setItem('rv_period_close_day', day.toString());
+}
+
+function getCurrentPeriod() {
+  const closeDay = getPeriodCloseDay();
+  const now = new Date();
+  const y = now.getFullYear();
+  const m = now.getMonth();
+
+  if (closeDay === 1) {
+    const start = new Date(y, m, 1);
+    const end = new Date(y, m + 1, 0, 23, 59, 59, 999);
+    const label = now.toLocaleDateString('es-PY', { month: 'long', year: 'numeric' });
+    return { startDate: start, endDate: end, label };
+  }
+
+  // If today is before close day → period started previous month
+  let sm = now.getDate() < closeDay ? m - 1 : m;
+  let sy = y;
+  if (sm < 0) { sm = 11; sy--; }
+
+  const start = new Date(sy, sm, closeDay);
+  const end = new Date(sy, sm + 1, closeDay - 1, 23, 59, 59, 999);
+  const label = end.toLocaleDateString('es-PY', { month: 'long', year: 'numeric' });
+
+  return { startDate: start, endDate: end, label };
+}
+
+function getPeriodPreview(closeDay) {
+  const now = new Date();
+  const y = now.getFullYear();
+  const m = now.getMonth();
+  let sm = now.getDate() < closeDay ? m - 1 : m;
+  let sy = y;
+  if (sm < 0) { sm = 11; sy--; }
+  const start = new Date(sy, sm, closeDay);
+  const end = new Date(sy, sm + 1, closeDay - 1);
+  const fmt = (d) => d.toLocaleDateString('es-PY', { day: 'numeric', month: 'short' });
+  return `${fmt(start)} - ${fmt(end)}`;
+}
+
+function updatePeriodPreview() {
+  const el = document.getElementById('period-preview');
+  if (el) {
+    const d = parseInt(document.getElementById('period-close-day').value) || 1;
+    el.textContent = getPeriodPreview(d);
+  }
+}
+
+function updatePeriodIndicator() {
+  const el = document.getElementById('period-indicator');
+  if (el) {
+    const p = getCurrentPeriod();
+    const fmt = (d) => d.toLocaleDateString('es-PY', { day: 'numeric', month: 'short' });
+    el.textContent = `Periodo: ${fmt(p.startDate)} - ${fmt(p.endDate)}`;
+  }
+}
+
 // Dashboard Render
 function renderDashboard() {
-  // Calcular métricas del mes actual
-  const now = new Date();
+  // Calcular métricas del periodo actual
+  const period = getCurrentPeriod();
   const currentMonthTransactions = transactionsCache.filter(tx => {
-    return tx.date.getMonth() === now.getMonth() && tx.date.getFullYear() === now.getFullYear();
+    return tx.date >= period.startDate && tx.date <= period.endDate;
   });
+  updatePeriodIndicator();
   
   let totalIncome = 0;
   let totalExpense = 0;
@@ -294,15 +359,13 @@ function renderRecentTransactions() {
   const listContainer = document.getElementById('db-recent-list');
   listContainer.innerHTML = '';
   
-  const now = new Date();
+  const period = getCurrentPeriod();
   const currentMonthExpenses = transactionsCache.filter(tx => {
-    return tx.type === 'expense' && 
-           tx.date.getMonth() === now.getMonth() && 
-           tx.date.getFullYear() === now.getFullYear();
+    return tx.type === 'expense' && tx.date >= period.startDate && tx.date <= period.endDate;
   });
   
   if (currentMonthExpenses.length === 0) {
-    listContainer.innerHTML = `<div style="text-align:center; padding: 30px 0; color:var(--text-secondary); font-size:14px;">No hay gastos registrados en el mes actual.</div>`;
+    listContainer.innerHTML = `<div style="text-align:center; padding: 30px 0; color:var(--text-secondary); font-size:14px;">No hay gastos registrados en el periodo actual.</div>`;
     return;
   }
   
@@ -347,10 +410,16 @@ async function renderHistory() {
   const now = new Date();
   
   if (dateOption === 'this-month') {
-    startDate = new Date(now.getFullYear(), now.getMonth(), 1);
+    const p = getCurrentPeriod();
+    startDate = p.startDate;
+    endDate = p.endDate;
   } else if (dateOption === 'last-month') {
-    startDate = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-    endDate = new Date(now.getFullYear(), now.getMonth(), 0);
+    const p = getCurrentPeriod();
+    startDate = new Date(p.startDate);
+    startDate.setMonth(startDate.getMonth() - 1);
+    endDate = new Date(p.startDate);
+    endDate.setDate(endDate.getDate() - 1);
+    endDate.setHours(23, 59, 59, 999);
   } else if (dateOption === 'last-7-days') {
     startDate = new Date();
     startDate.setDate(now.getDate() - 7);
@@ -729,6 +798,22 @@ function setupEventListeners() {
     themeToggle.addEventListener('change', (e) => {
       const newTheme = e.target.checked ? 'dark' : 'light';
       setTheme(newTheme);
+    });
+  }
+
+  // Periodo (día de cierre)
+  const periodInput = document.getElementById('period-close-day');
+  if (periodInput) {
+    periodInput.value = getPeriodCloseDay();
+    updatePeriodPreview();
+    periodInput.addEventListener('change', () => {
+      let val = parseInt(periodInput.value);
+      if (isNaN(val) || val < 1) val = 1;
+      if (val > 28) val = 28;
+      periodInput.value = val;
+      savePeriodCloseDay(val);
+      updatePeriodPreview();
+      if (currentUser && activeView === 'dashboard') renderDashboard();
     });
   }
   
